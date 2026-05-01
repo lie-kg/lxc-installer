@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 # =========================================================
-#   LXC + LXD AUTO INSTALLER (FIXED VERSION)
-#   Ubuntu / Debian (NEW SNAP METHOD)
+#   LXC + LXD AUTO INSTALLER (FIXED SNAP VERSION)
+#   Ubuntu / Debian
 #   Author: lie_kg
 # =========================================================
 
@@ -29,10 +29,9 @@ fi
 # ---------------- HEADER ----------------
 
 show_header() {
-
     clear
-    echo -e "${CYAN}${BOLD}"
 
+    echo -e "${CYAN}${BOLD}"
     cat << "EOF"
 
 ██╗     ██╗  ██╗ ██████╗  ██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗     ███████╗██████╗
@@ -43,10 +42,9 @@ show_header() {
 ╚══════╝╚═╝  ╚═╝ ╚═════╝  ╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝
 
 EOF
-
     echo -e "${RESET}"
 
-    echo -e "${MAGENTA}${BOLD}🚀 LXC + LXD AUTO INSTALLER (FIXED SNAP VERSION)${RESET}"
+    echo -e "${MAGENTA}${BOLD}🚀 LXC + LXD AUTO INSTALLER (FIXED)${RESET}"
     echo -e "${BLUE}Powered by lie_kg${RESET}"
     echo
 }
@@ -57,15 +55,13 @@ log() {
     echo "[$(date '+%H:%M:%S')] $1" >> "$LOG_FILE"
 }
 
-# ---------------- INTERNET CHECK (FIXED) ----------------
+# ---------------- INTERNET CHECK ----------------
 
 check_internet() {
-
     echo -e "${CYAN}Checking internet connection...${RESET}"
 
     if curl -fsSL https://google.com >/dev/null 2>&1 || \
        curl -fsSL https://1.1.1.1 >/dev/null 2>&1; then
-
         echo -e "${GREEN}✔ Internet OK${RESET}"
     else
         echo -e "${RED}❌ No internet connection${RESET}"
@@ -78,7 +74,6 @@ check_internet() {
 # ---------------- OS CHECK ----------------
 
 check_os() {
-
     . /etc/os-release
 
     case "$ID" in
@@ -92,11 +87,11 @@ check_os() {
     esac
 }
 
-# ---------------- INSTALL (FIXED) ----------------
+# ---------------- INSTALL FIXED ----------------
 
 install_packages() {
 
-    echo -e "${YELLOW}Installing base packages...${RESET}"
+    echo -e "${YELLOW}Installing dependencies...${RESET}"
 
     $SUDO apt update -y
 
@@ -109,12 +104,14 @@ install_packages() {
         ca-certificates \
         snapd
 
-    echo -e "${CYAN}Installing LXD via SNAP (FIXED METHOD)...${RESET}"
+    echo -e "${CYAN}Installing LXD via SNAP...${RESET}"
 
     $SUDO snap install lxd --channel=latest/stable
+
+    echo -e "${GREEN}✔ LXD installed correctly${RESET}"
 }
 
-# ---------------- ENABLE ----------------
+# ---------------- ENABLE LXD ----------------
 
 enable_lxd() {
     $SUDO systemctl enable --now snap.lxd.daemon || true
@@ -123,25 +120,20 @@ enable_lxd() {
 # ---------------- USER ----------------
 
 configure_user() {
-
     USERNAME="${SUDO_USER:-$USER}"
-
     $SUDO usermod -aG lxd "$USERNAME"
 }
 
 # ---------------- INIT ----------------
 
 init_lxd() {
-
     echo -e "${CYAN}Initializing LXD...${RESET}"
-
     $SUDO lxd init --auto || true
 }
 
 # ---------------- TEST ----------------
 
 test_lxd() {
-
     $SUDO lxc info || true
     $SUDO lxc list || true
 }
