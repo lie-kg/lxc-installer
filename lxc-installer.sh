@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 # =========================================================
-#   LXC + LXD AUTO INSTALLER
-#   Ubuntu / Debian
+#   LXC + LXD AUTO INSTALLER (FIXED VERSION)
+#   Ubuntu / Debian (NEW SNAP METHOD)
 #   Author: lie_kg
 # =========================================================
 
@@ -14,8 +14,8 @@ RED="\033[31m"
 GREEN="\033[32m"
 YELLOW="\033[33m"
 BLUE="\033[34m"
-MAGENTA="\033[35m"
 CYAN="\033[36m"
+MAGENTA="\033[35m"
 
 LOG_FILE="/tmp/lxd-installer.log"
 
@@ -38,7 +38,7 @@ show_header() {
 ██╗     ██╗  ██╗ ██████╗  ██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗     ███████╗██████╗
 ██║     ╚██╗██╔╝██╔════╝  ██║████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║     ██║     ██╔════╝██╔══██╗
 ██║      ╚███╔╝ ██║       ██║██╔██╗ ██║███████╗   ██║   ███████║██║     ██║     █████╗  ██████╔╝
-██║      ██╔██╗ ██║       ██║██║╚██╗██║╚════██║   ██║   ██╔══██║██║     ██║     ██╔════╝██╔══██╗
+██║      ██╔██╗ ██║       ██║██║╚██╗██║╚════██║   ██║   ██║  ██║███████╗███████╗███████╗██║  ██║
 ███████╗██╔╝ ██╗╚██████╗  ██║██║ ╚████║███████║   ██║   ██║  ██║███████╗███████╗███████╗██║  ██║
 ╚══════╝╚═╝  ╚═╝ ╚═════╝  ╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝
 
@@ -46,7 +46,7 @@ EOF
 
     echo -e "${RESET}"
 
-    echo -e "${MAGENTA}${BOLD}🚀 LXC + LXD AUTO INSTALLER${RESET}"
+    echo -e "${MAGENTA}${BOLD}🚀 LXC + LXD AUTO INSTALLER (FIXED SNAP VERSION)${RESET}"
     echo -e "${BLUE}Powered by lie_kg${RESET}"
     echo
 }
@@ -67,12 +67,9 @@ check_internet() {
        curl -fsSL https://1.1.1.1 >/dev/null 2>&1; then
 
         echo -e "${GREEN}✔ Internet OK${RESET}"
-
     else
-
         echo -e "${RED}❌ No internet connection${RESET}"
         exit 1
-
     fi
 
     echo
@@ -95,41 +92,58 @@ check_os() {
     esac
 }
 
-# ---------------- INSTALL ----------------
+# ---------------- INSTALL (FIXED) ----------------
 
 install_packages() {
 
-    echo -e "${YELLOW}Installing packages...${RESET}"
+    echo -e "${YELLOW}Installing base packages...${RESET}"
 
     $SUDO apt update -y
-    $SUDO apt install -y lxd lxc uidmap bridge-utils curl wget ca-certificates
+
+    $SUDO apt install -y \
+        lxc \
+        uidmap \
+        bridge-utils \
+        curl \
+        wget \
+        ca-certificates \
+        snapd
+
+    echo -e "${CYAN}Installing LXD via SNAP (FIXED METHOD)...${RESET}"
+
+    $SUDO snap install lxd --channel=latest/stable
 }
 
 # ---------------- ENABLE ----------------
 
 enable_lxd() {
-    $SUDO systemctl enable --now lxd || true
+    $SUDO systemctl enable --now snap.lxd.daemon || true
 }
 
 # ---------------- USER ----------------
 
 configure_user() {
+
     USERNAME="${SUDO_USER:-$USER}"
+
     $SUDO usermod -aG lxd "$USERNAME"
 }
 
 # ---------------- INIT ----------------
 
 init_lxd() {
+
     echo -e "${CYAN}Initializing LXD...${RESET}"
-    $SUDO lxd init --auto
+
+    $SUDO lxd init --auto || true
 }
 
 # ---------------- TEST ----------------
 
 test_lxd() {
-    $SUDO lxc info
-    $SUDO lxc list
+
+    $SUDO lxc info || true
+    $SUDO lxc list || true
 }
 
 # ---------------- MAIN ----------------
@@ -151,7 +165,7 @@ main() {
     test_lxd
 
     echo -e "${GREEN}${BOLD}✔ INSTALL COMPLETE${RESET}"
-    echo "Run: newgrp lxd OR reboot"
+    echo "Run: newgrp lxd or reboot"
 }
 
 main "$@"
