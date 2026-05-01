@@ -96,6 +96,7 @@ install_packages() {
     $SUDO apt update -y
 
     $SUDO apt install -y \
+        sudo \
         lxc \
         uidmap \
         bridge-utils \
