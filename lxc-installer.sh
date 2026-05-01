@@ -2,148 +2,288 @@
 set -Eeuo pipefail
 
 # =========================================================
-#   LXC + LXD AUTO INSTALLER (LEVEL ∞ EDITION)
-#   Ubuntu / Debian - Production Ready
+#   LXC + LXD AUTO INSTALLER (UPDATED WORKING VERSION)
+#   Ubuntu / Debian
+#   Author: HopingBoyz
 # =========================================================
 
-# ---------------- CONFIG ----------------
-LOG_FILE="/tmp/lxd_installer.log"
-MAX_RETRIES=3
-RETRY_DELAY=3
-FAST_MODE="${FAST_MODE:-0}"
-
 # ---------------- COLORS ----------------
-RED="\e[31m"; GREEN="\e[32m"; YELLOW="\e[33m"
-BLUE="\e[34m"; CYAN="\e[36m"; MAGENTA="\e[35m"
-BOLD="\e[1m"; RESET="\e[0m"
+RESET="\033[0m"
+BOLD="\033[1m"
 
-SUDO=""
-[ "$(id -u)" -ne 0 ] && SUDO="sudo"
+RED="\033[31m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+BLUE="\033[34m"
+MAGENTA="\033[35m"
+CYAN="\033[36m"
+WHITE="\033[97m"
 
-# ---------------- LOG ----------------
-init_log() {
-    echo "=== LXD INSTALL LOG ===" > "$LOG_FILE"
-    echo "Date: $(date)" >> "$LOG_FILE"
-}
+# ---------------- CONFIG ----------------
+LOG_FILE="/tmp/lxd-installer.log"
 
-log() {
-    echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"
-}
+# ---------------- ROOT CHECK ----------------
+if [ "$(id -u)" -eq 0 ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
 
 # ---------------- HEADER ----------------
 show_header() {
     clear
-    echo -e "${CYAN}${BOLD}"
-    cat <<EOF
-██╗     ██╗  ██╗ ██████╗ ██╗  ██╗██████╗
-██║     ╚██╗██╔╝██╔═══██╗██║  ██║██╔══██╗
-██║      ╚███╔╝ ██║   ██║███████║██████╔╝
-██║      ██╔██╗ ██║   ██║██╔══██║██╔═══╝
-███████╗██╔╝ ██╗╚██████╔╝██║  ██║██║
-╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝
 
-   LXC + LXD INSTALLER LEVEL ∞
+    printf "${CYAN}${BOLD}"
+    cat << "EOF"
+
+██╗     ██╗  ██╗ ██████╗
+██║     ╚██╗██╔╝██╔════╝
+██║      ╚███╔╝ ██║
+██║      ██╔██╗ ██║
+███████╗██╔╝ ██╗╚██████╗
+╚══════╝╚═╝  ╚═╝ ╚═════╝
+
+██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗     ███████╗██████╗
+██║████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║     ██║     ██╔════╝██╔══██╗
+██║██╔██╗ ██║███████╗   ██║   ███████║██║     ██║     █████╗  ██████╔╝
+██║██║╚██╗██║╚════██║   ██║   ██╔══██║██║     ██║     ██╔══╝  ██╔══██╗
+██║██║ ╚████║███████║   ██║   ██║  ██║███████╗███████╗███████╗██║  ██║
+╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝
+
 EOF
-    echo -e "${RESET}"
+    printf "${RESET}"
+
+    echo
+    printf "${MAGENTA}${BOLD}🚀 LXC + LXD AUTO INSTALLER${RESET}\n"
+    printf "${BLUE}Ubuntu • Debian • VPS • Containers${RESET}\n\n"
 }
 
-# ---------------- FAST CONTROL ----------------
-run() {
-    log "RUN: $*"
-    "$@" >>"$LOG_FILE" 2>&1
+# ---------------- LOGGING ----------------
+log() {
+    echo "[$(date '+%H:%M:%S')] $1" >> "$LOG_FILE"
 }
 
-wait_snap() {
-    local i=0
-    while ! snap changes >/dev/null 2>&1; do
-        sleep 1
-        ((i++))
-        [ $i -gt 30 ] && break
+# ---------------- SPINNER ----------------
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spin='|/-\'
+
+    while ps -p "$pid" > /dev/null 2>&1; do
+        for i in $(seq 0 3); do
+            printf "\r${CYAN}${spin:$i:1}${RESET} "
+            sleep $delay
+        done
     done
+
+    printf "\r"
 }
 
-# ---------------- INSTALL ----------------
-install_base() {
-    log "Installing base packages"
-    run $SUDO apt update -y
-    run $SUDO apt install -y lxc bridge-utils uidmap curl wget snapd
+# ---------------- RUN CMD ----------------
+run_cmd() {
+    local text="$1"
+    shift
+
+    printf "${YELLOW}▶${RESET} ${BOLD}%s${RESET}\n" "$text"
+
+    (
+        "$@"
+    ) >> "$LOG_FILE" 2>&1 &
+
+    local pid=$!
+
+    spinner "$pid"
+
+    wait "$pid"
+
+    printf "${GREEN}✔${RESET} %s\n\n" "$text"
 }
 
-install_lxd() {
-    log "Installing snapd + LXD"
+# ---------------- ERROR ----------------
+error_handler() {
+    local line="$1"
 
-    run $SUDO systemctl enable --now snapd.socket
+    printf "\n${RED}${BOLD}❌ INSTALL FAILED${RESET}\n"
+    printf "${YELLOW}Line:${RESET} %s\n" "$line"
+    printf "${YELLOW}Log:${RESET} %s\n\n" "$LOG_FILE"
 
-    wait_snap
-
-    run $SUDO snap install core || true
-    run $SUDO snap refresh core
-
-    if ! snap list lxd >/dev/null 2>&1; then
-        run $SUDO snap install lxd --channel=latest/stable
-    fi
+    exit 1
 }
 
-# ---------------- USER SETUP ----------------
-setup_user() {
-    USERNAME="${SUDO_USER:-$USER}"
-    log "Adding user $USERNAME to lxd"
-    run $SUDO usermod -aG lxd "$USERNAME"
-}
+trap 'error_handler ${LINENO}' ERR
 
-# ---------------- LXD INIT ----------------
-init_lxd() {
-    log "Initializing LXD"
-
-    if ! command -v lxd >/dev/null 2>&1; then
-        echo -e "${RED}LXD not found${RESET}"
+# ---------------- CHECK OS ----------------
+check_os() {
+    if [ ! -f /etc/os-release ]; then
+        echo "Unsupported OS"
         exit 1
     fi
 
-    $SUDO lxd init --auto || {
-        echo -e "${YELLOW}Auto init failed → fallback interactive${RESET}"
-        $SUDO lxd init
-    }
+    . /etc/os-release
+
+    case "$ID" in
+        ubuntu|debian)
+            printf "${GREEN}✔ Supported OS:${RESET} %s\n\n" "$PRETTY_NAME"
+            ;;
+        *)
+            printf "${RED}Unsupported OS:${RESET} %s\n" "$PRETTY_NAME"
+            exit 1
+            ;;
+    esac
 }
 
-# ---------------- NETWORK FIX ----------------
-fix_bridge() {
-    log "Checking lxd network"
+# ---------------- SYSTEM INFO ----------------
+system_info() {
+    echo "${CYAN}${BOLD}System Information${RESET}"
 
-    if ! $SUDO lxc network list | grep -q lxdbr0; then
-        echo -e "${CYAN}Creating default bridge...${RESET}"
-        $SUDO lxc network create lxdbr0 ipv4.address=auto ipv6.address=auto || true
+    echo "OS:        $(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')"
+    echo "Kernel:    $(uname -r)"
+    echo "Arch:      $(uname -m)"
+    echo "CPU:       $(nproc) Cores"
+
+    if command -v free >/dev/null 2>&1; then
+        echo "RAM:       $(free -h | awk '/Mem:/ {print $2}')"
     fi
+
+    echo
 }
 
-# ---------------- VALIDATION ----------------
-validate() {
-    log "Validating install"
+# ---------------- INSTALL ----------------
+install_packages() {
 
-    $SUDO lxc version || true
-    $SUDO lxc list || true
+    run_cmd "Updating packages" \
+        $SUDO apt-get update -y
+
+    run_cmd "Installing dependencies" \
+        $SUDO apt-get install -y \
+        lxd \
+        lxc \
+        lxc-utils \
+        uidmap \
+        bridge-utils \
+        curl \
+        wget
+
 }
 
-# ---------------- CLEAN EXIT ----------------
-cleanup() {
-    log "Cleaning up"
+# ---------------- ENABLE LXD ----------------
+enable_lxd() {
+
+    if command -v systemctl >/dev/null 2>&1; then
+
+        run_cmd "Enabling LXD service" \
+            $SUDO systemctl enable --now lxd
+
+    fi
+
 }
-trap cleanup EXIT
+
+# ---------------- USER GROUP ----------------
+configure_user() {
+
+    TARGET_USER="${SUDO_USER:-$USER}"
+
+    if id -nG "$TARGET_USER" | grep -qw lxd; then
+        printf "${GREEN}✔${RESET} User already in lxd group\n\n"
+        return
+    fi
+
+    run_cmd "Adding user to lxd group" \
+        $SUDO usermod -aG lxd "$TARGET_USER"
+
+}
+
+# ---------------- INIT ----------------
+init_lxd() {
+
+    printf "${CYAN}${BOLD}Initializing LXD...${RESET}\n\n"
+
+    if [ ! -d /var/snap/lxd ] && [ ! -d /var/lib/lxd ]; then
+        true
+    fi
+
+    run_cmd "Running automatic LXD init" \
+        $SUDO lxd init --auto
+
+}
+
+# ---------------- TEST ----------------
+test_lxd() {
+
+    printf "${CYAN}${BOLD}Testing LXD...${RESET}\n\n"
+
+    run_cmd "Checking LXD info" \
+        $SUDO lxc info
+
+    run_cmd "Checking container list" \
+        $SUDO lxc list
+
+}
+
+# ---------------- SUCCESS ----------------
+success_message() {
+
+    printf "\n${GREEN}${BOLD}"
+    cat << "EOF"
+
+╔══════════════════════════════════════╗
+║                                      ║
+║      INSTALLATION COMPLETED 🚀      ║
+║                                      ║
+╚══════════════════════════════════════╝
+
+EOF
+    printf "${RESET}"
+
+    echo "${CYAN}Quick Commands:${RESET}"
+    echo
+    echo "lxc list"
+    echo "lxc info"
+    echo "lxc storage list"
+    echo "lxc network list"
+    echo
+    echo "Launch Ubuntu container:"
+    echo
+    echo "lxc launch ubuntu:24.04 mycontainer"
+    echo
+    echo "${YELLOW}IMPORTANT:${RESET}"
+    echo "Run this after install:"
+    echo
+    echo "newgrp lxd"
+    echo
+    echo "OR reboot server:"
+    echo
+    echo "sudo reboot"
+    echo
+}
 
 # ---------------- MAIN ----------------
 main() {
-    init_log
+
+    touch "$LOG_FILE"
+
     show_header
 
-    install_base
-    install_lxd
-    setup_user
-    init_lxd
-    fix_bridge
-    validate
+    log "Installer started"
 
-    echo -e "${GREEN}${BOLD}✔ INSTALL COMPLETE${RESET}"
-    echo -e "${BLUE}Run: newgrp lxd OR reboot${RESET}"
+    check_os
+
+    system_info
+
+    install_packages
+
+    enable_lxd
+
+    configure_user
+
+    init_lxd
+
+    test_lxd
+
+    success_message
+
+    log "Installer completed"
+
 }
 
 main "$@"
