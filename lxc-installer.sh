@@ -297,7 +297,7 @@ install_lxd() {
         fi
 
         sleep 1
-        ((count++))
+        ((count+=1))
     done
 
     if ! snap list lxd >/dev/null 2>&1; then
