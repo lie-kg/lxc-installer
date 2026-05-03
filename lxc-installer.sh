@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 # =========================================================
-#   LXC + LXD AUTO INSTALLER (KALI/UBUNTU/DEBIAN)
-#   VPS SAFE VERSION
+#   LXC + LXD AUTO INSTALLER (VPS SAFE FIXED)
+#   Kali / Ubuntu / Debian compatible
 #   Author: lie_kg
 # =========================================================
 
@@ -14,179 +14,89 @@ export DEBIAN_FRONTEND=noninteractive
 # ---------------- COLORS ----------------
 
 RESET="\033[0m"
-BOLD="\033[1m"
-
-RED="\033[31m"
 GREEN="\033[32m"
+RED="\033[31m"
 YELLOW="\033[33m"
-BLUE="\033[34m"
 CYAN="\033[36m"
+BLUE="\033[34m"
 MAGENTA="\033[35m"
-
-# ---------------- SYMBOLS ----------------
 
 OK="[OK]"
 FAIL="[FAIL]"
-WARN="[WARN]"
 INFO="[INFO]"
-ARROW=">>"
-
-# ---------------- CONFIG ----------------
+WARN="[WARN]"
 
 INSTALL_LOG="/tmp/lxd_installer.log"
 
-# ---------------- ROOT CHECK ----------------
-
 SUDO=""
+[ "$(id -u)" -ne 0 ] && SUDO="sudo"
 
-if [ "$(id -u)" -ne 0 ]; then
-    SUDO="sudo"
-fi
-
-# ---------------- LOGGING ----------------
+# ---------------- LOG ----------------
 
 init_log() {
-    echo "=== LXC/LXD INSTALLER LOG ===" > "$INSTALL_LOG"
+    echo "=== LXD INSTALL LOG ===" > "$INSTALL_LOG"
     echo "Started: $(date)" >> "$INSTALL_LOG"
 }
 
-log_message() {
-    local level="$1"
-    local msg="$2"
-
-    echo "[$(date '+%H:%M:%S')] [$level] $msg" >> "$INSTALL_LOG"
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" >> "$INSTALL_LOG"
 }
 
 # ---------------- HEADER ----------------
 
 show_header() {
-
     clear
-
-    echo -e "${BLUE}${BOLD}"
-
+    echo -e "${BLUE}"
 cat << "EOF"
-
-██╗      ██╗  ██╗ ██████╗  ██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗     ███████╗██████╗
-██║      ╚██╗██╔╝██╔════╝  ██║████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║     ██║     ██╔════╝██╔══██╗
-██║       ╚███╔╝ ██║       ██║██╔██╗ ██║███████╗   ██║   ███████║██║     ██║     █████╗  ██████╔╝
-██║       ██╔██╗ ██║       ██║██║╚██╗██║╚════██║   ██║   ██╔══██║██║     ██║     ██╔══╝  ██╔══██╗
-███████╗ ██╔╝ ██╗╚██████╗  ██║██║ ╚████║███████║   ██║   ██║  ██║███████╗███████╗███████╗██║  ██║
-╚══════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝
-
+██╗      ██╗  ██╗ ██████╗  ██╗███╗   ██╗███████╗
+██║      ╚██╗██╔╝██╔════╝  ██║████╗  ██║██╔════╝
+██║       ╚███╔╝ ██║       ██║██╔██╗ ██║███████╗
+██║       ██╔██╗ ██║       ██║██║╚██╗██║╚════██║
+███████╗ ██╔╝ ██╗╚██████╗  ██║██║ ╚████║███████║
+╚══════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═╝╚═╝  ╚═══╝╚══════╝
 EOF
-
     echo -e "${RESET}"
-
-    echo -e "${MAGENTA}${BOLD}AUTO LXC + LXD INSTALLER${RESET}"
+    echo -e "${MAGENTA}AUTO LXC + LXD INSTALLER${RESET}"
     echo -e "${CYAN}Made by lie_kg${RESET}"
-
     echo
 }
 
-# ---------------- BOX ----------------
-
-print_box() {
-    local msg="$1"
-
-    echo
-    echo "+================================================+"
-    printf "| %-46s |\n" "$msg"
-    echo "+================================================+"
-}
-
-# ---------------- SPINNER ----------------
-
-_spinner() {
-
-    local pid=$1
-    local delay=0.10
-    local spin='-\|/'
-
-    while ps -p $pid > /dev/null 2>&1; do
-        for i in $(seq 0 3); do
-            printf "\r${CYAN}[%c]${RESET} " "${spin:$i:1}"
-            sleep $delay
-        done
-    done
-
-    printf "\r"
-}
-
-# ---------------- RUN WITH SPINNER ----------------
-
-run_with_spinner() {
-
-    local desc="$1"
-    shift
-
-    printf "${CYAN}${INFO}${RESET} %s\n" "$desc"
-
-    (
-        "$@"
-    ) >> "$INSTALL_LOG" 2>&1 &
-
-    local pid=$!
-
-    _spinner $pid
-
-    if wait $pid; then
-        printf "${GREEN}${OK}${RESET} %s\n\n" "$desc"
-        log_message "SUCCESS" "$desc"
-    else
-        printf "${RED}${FAIL}${RESET} %s\n\n" "$desc"
-        log_message "ERROR" "$desc"
-        return 1
-    fi
-}
-
-# ---------------- DETECT OS ----------------
+# ---------------- OS DETECT ----------------
 
 detect_os() {
 
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
+    . /etc/os-release
 
-        OS_ID="${ID:-unknown}"
-        OS_VERSION="${VERSION_ID:-unknown}"
-    else
-        echo -e "${RED}${FAIL} Cannot detect OS${RESET}"
-        exit 1
-    fi
+    OS_ID="${ID:-unknown}"
+    OS_VERSION="${VERSION_ID:-unknown}"
 
     case "$OS_ID" in
-        ubuntu|debian|kali|linuxmint|parrot)
-            echo -e "${GREEN}${OK} Supported OS detected: ${OS_ID} ${OS_VERSION}${RESET}"
+        ubuntu|debian|kali)
+            echo -e "${GREEN}${OK} OS: $OS_ID $OS_VERSION${RESET}"
             ;;
         *)
-            echo -e "${YELLOW}${WARN} Unknown distro detected: ${OS_ID}${RESET}"
-            echo -e "${CYAN}${INFO}${RESET} Continuing anyway..."
+            echo -e "${YELLOW}${WARN} Unknown OS: $OS_ID (continuing)${RESET}"
             ;;
     esac
 
-    if systemd-detect-virt --quiet openvz; then
-        echo -e "${RED}${FAIL} OpenVZ is not supported by LXD${RESET}"
-        exit 1
-    fi
-
-    virt=$(systemd-detect-virt || echo "none")
-
-    echo -e "${CYAN}${INFO}${RESET} Virtualization: ${virt}"
+    virt=$(systemd-detect-virt 2>/dev/null || echo "none")
+    echo -e "${CYAN}${INFO} Virtualization: $virt${RESET}"
     echo
 }
 
 # ---------------- SYSTEM INFO ----------------
 
-show_system_info() {
+system_info() {
 
-    print_box "SYSTEM INFORMATION"
+    echo -e "${CYAN}SYSTEM INFO${RESET}"
+    echo "Kernel: $(uname -r)"
+    echo "Arch: $(uname -m)"
 
-    echo -e "${CYAN}OS:${RESET} $(lsb_release -d 2>/dev/null | cut -f2)"
-    echo -e "${CYAN}Kernel:${RESET} $(uname -r)"
-    echo -e "${CYAN}Architecture:${RESET} $(uname -m)"
-    echo -e "${CYAN}RAM:${RESET} $(free -h | awk '/^Mem:/ {print $2}')"
-    echo -e "${CYAN}Disk:${RESET} $(df -h / | awk 'NR==2 {print $4}')"
+    mem=$(free -h 2>/dev/null | awk '/Mem:/ {print $2}' || echo "unknown")
+    echo "RAM: $mem"
 
+    disk=$(df -h / | awk 'NR==2 {print $4}')
+    echo "Disk: $disk"
     echo
 }
 
@@ -194,158 +104,72 @@ show_system_info() {
 
 install_packages() {
 
-    print_box "INSTALLING PACKAGES"
+    echo -e "${CYAN}${INFO} Installing packages...${RESET}"
 
-    run_with_spinner \
-        "Updating repositories" \
-        $SUDO apt update -y
+    $SUDO apt update -y >> "$INSTALL_LOG" 2>&1
 
-    run_with_spinner \
-        "Installing dependencies" \
-        $SUDO apt install -y \
-        lxc \
-        snapd \
-        curl \
-        wget \
-        uidmap \
-        bridge-utils \
-        squashfs-tools \
-        ca-certificates \
-        locales \
-        software-properties-common \
-        iptables \
-        jq \
-        nano
+    $SUDO apt install -y \
+        lxc snapd curl wget uidmap bridge-utils squashfs-tools \
+        ca-certificates locales software-properties-common \
+        iptables jq nano procps locales-all >> "$INSTALL_LOG" 2>&1
 
-    run_with_spinner \
-        "Generating locales" \
-        $SUDO locale-gen en_US.UTF-8
-
-    run_with_spinner \
-        "Updating locale settings" \
-        $SUDO update-locale LANG=en_US.UTF-8
+    $SUDO locale-gen en_US.UTF-8 >> "$INSTALL_LOG" 2>&1
 }
 
-# ---------------- INSTALL LXD ----------------
+# ---------------- LXD ----------------
 
 install_lxd() {
 
-    print_box "INSTALLING LXD"
+    echo -e "${CYAN}${INFO} Installing LXD...${RESET}"
 
-    run_with_spinner \
-        "Enabling snapd" \
-        $SUDO systemctl enable --now snapd
+    $SUDO systemctl enable --now snapd >> "$INSTALL_LOG" 2>&1
+    $SUDO systemctl restart snapd >> "$INSTALL_LOG" 2>&1
 
-    run_with_spinner \
-        "Restarting snapd" \
-        $SUDO systemctl restart snapd
+    sleep 3
 
-    sleep 5
+    $SUDO snap install lxd --channel=latest/stable >> "$INSTALL_LOG" 2>&1
 
-    run_with_spinner \
-        "Installing LXD from snap" \
-        $SUDO snap install lxd --channel=latest/stable
-
-    run_with_spinner \
-        "Initializing LXD" \
-        $SUDO lxd init --auto
+    $SUDO lxd init --auto >> "$INSTALL_LOG" 2>&1
 }
 
-# ---------------- USER CONFIG ----------------
+# ---------------- USER ----------------
 
 configure_user() {
 
-    print_box "CONFIGURING USER"
+    user="${SUDO_USER:-$(whoami)}"
 
-    TARGET_USER="${SUDO_USER:-$(whoami)}"
-
-    if ! groups "$TARGET_USER" | grep -q '\blxd\b'; then
-
-        run_with_spinner \
-            "Adding user to lxd group" \
-            $SUDO usermod -aG lxd "$TARGET_USER"
+    if ! groups "$user" | grep -q lxd; then
+        $SUDO usermod -aG lxd "$user"
     fi
 }
 
 # ---------------- VALIDATE ----------------
 
-validate_installation() {
+validate() {
 
-    print_box "VALIDATING INSTALLATION"
+    echo -e "${CYAN}${INFO} Validating...${RESET}"
 
-    run_with_spinner \
-        "Checking LXD status" \
-        $SUDO lxc info
-
-    run_with_spinner \
-        "Checking containers" \
-        $SUDO lxc list
+    $SUDO lxc info >> "$INSTALL_LOG" 2>&1
+    $SUDO lxc list >> "$INSTALL_LOG" 2>&1
 }
-
-# ---------------- SUCCESS ----------------
-
-show_success() {
-
-    print_box "INSTALL COMPLETE"
-
-    echo -e "${GREEN}${OK} LXC/LXD installed successfully${RESET}"
-    echo
-
-    echo -e "${CYAN}Commands:${RESET}"
-    echo
-
-    echo "lxc list"
-    echo "lxc info"
-    echo "lxc storage list"
-    echo "lxc network list"
-    echo "lxc launch ubuntu:22.04 test"
-
-    echo
-    echo -e "${YELLOW}Run:${RESET} newgrp lxd"
-    echo
-}
-
-# ---------------- ERROR ----------------
-
-handle_error() {
-
-    local exit_code=$?
-    local line_number=$1
-    local command="$2"
-
-    echo
-    echo -e "${RED}${FAIL} Installation failed${RESET}"
-    echo -e "${RED}Line:${RESET} $line_number"
-    echo -e "${RED}Command:${RESET} $command"
-    echo -e "${RED}Exit:${RESET} $exit_code"
-    echo
-
-    exit $exit_code
-}
-
-trap 'handle_error ${LINENO} "${BASH_COMMAND}"' ERR
 
 # ---------------- MAIN ----------------
 
 main() {
 
     init_log
-
     show_header
-
     detect_os
-
-    show_system_info
-
+    system_info
     install_packages
-
     install_lxd
-
     configure_user
+    validate
 
-    validate_installation
-
-    show_success
+    echo -e "${GREEN}${OK} INSTALL COMPLETE${RESET}"
+    echo "Run: newgrp lxd"
 }
 
-main "$@"
+trap 'echo -e "${RED}${FAIL} ERROR at line $LINENO${RESET}"' ERR
+
+main
