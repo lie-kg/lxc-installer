@@ -2,13 +2,15 @@
 set -Eeuo pipefail
 
 # =========================================================
-#   LXC + LXD AUTO INSTALLER (VPS SAFE VERSION)
+#   LXC + LXD AUTO INSTALLER (UBUNTU 22.04 OPTIMIZED)
+#   VPS SAFE VERSION
 #   Ubuntu / Debian
 #   Author: lie_kg
 # =========================================================
 
 export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
+export DEBIAN_FRONTEND=noninteractive
 
 # ---------------- COLORS ----------------
 
@@ -23,7 +25,7 @@ CYAN="\033[36m"
 MAGENTA="\033[35m"
 WHITE="\033[97m"
 
-# ---------------- SAFE SYMBOLS ----------------
+# ---------------- SYMBOLS ----------------
 
 OK="[OK]"
 FAIL="[FAIL]"
@@ -59,6 +61,25 @@ log_message() {
     local msg="$2"
 
     echo "[$(date '+%H:%M:%S')] [$level] $msg" >> "$INSTALL_LOG"
+}
+
+# ---------------- RETRY ----------------
+
+retry_command() {
+    local retries=$MAX_RETRIES
+    local count=0
+
+    until "$@"; do
+        exit_code=$?
+        count=$((count + 1))
+
+        if [ $count -ge $retries ]; then
+            return "$exit_code"
+        fi
+
+        echo -e "${YELLOW}${WARN} Retry $count/$retries...${RESET}"
+        sleep "$RETRY_DELAY"
+    done
 }
 
 # ---------------- HEADER ----------------
@@ -148,9 +169,7 @@ run_with_spinner() {
 
     _spinner $pid
 
-    wait $pid
-
-    if [ $? -eq 0 ]; then
+    if wait $pid; then
         printf "${GREEN}${OK}${RESET} %s\n\n" "$desc"
         log_message "SUCCESS" "$desc"
     else
@@ -181,12 +200,23 @@ show_system_info() {
     local disk_info
     disk_info=$(df -h / | awk 'NR==2 {print $4}')
 
+    local virt_info
+    virt_info=$(systemd-detect-virt || echo "none")
+
     echo -e "${CYAN}OS:${RESET}           ${GREEN}${os_info}${RESET}"
     echo -e "${CYAN}Architecture:${RESET} ${GREEN}${arch_info}${RESET}"
     echo -e "${CYAN}Kernel:${RESET}       ${GREEN}${kernel_info}${RESET}"
     echo -e "${CYAN}Memory:${RESET}       ${GREEN}${mem_info}${RESET}"
     echo -e "${CYAN}Disk Space:${RESET}   ${GREEN}${disk_info}${RESET}"
+    echo -e "${CYAN}Virtualization:${RESET} ${GREEN}${virt_info}${RESET}"
     echo
+
+    RAM_MB=$(free -m | awk '/^Mem:/ {print $2}')
+
+    if [ "$RAM_MB" -lt 1024 ]; then
+        echo -e "${YELLOW}${WARN} Low RAM detected (<1GB)${RESET}"
+        echo
+    fi
 }
 
 # ---------------- CHECK PRIVILEGES ----------------
@@ -194,7 +224,6 @@ show_system_info() {
 check_privileges() {
 
     if [ "$(id -u)" -ne 0 ]; then
-
         if ! groups | grep -q '\bsudo\b'; then
             echo -e "${RED}${FAIL} No sudo privileges${RESET}"
             exit 1
@@ -225,6 +254,11 @@ detect_os() {
             exit 1
             ;;
     esac
+
+    if systemd-detect-virt --quiet openvz; then
+        echo -e "${RED}${FAIL} OpenVZ is not supported by LXD${RESET}"
+        exit 1
+    fi
 }
 
 # ---------------- INSTALL PACKAGES ----------------
@@ -235,15 +269,15 @@ install_prereqs() {
 
     run_with_spinner \
         "Updating package lists" \
-        $SUDO apt-get update -y
+        retry_command $SUDO apt-get update -y
 
     run_with_spinner \
         "Upgrading packages" \
-        $SUDO apt-get upgrade -y
+        retry_command $SUDO apt-get upgrade -y
 
     run_with_spinner \
         "Installing required packages" \
-        $SUDO apt-get install -y \
+        retry_command $SUDO apt-get install -y \
         lxc \
         uidmap \
         bridge-utils \
@@ -252,7 +286,12 @@ install_prereqs() {
         wget \
         ca-certificates \
         snapd \
-        locales
+        locales \
+        software-properties-common \
+        iptables \
+        xz-utils \
+        jq \
+        nano
 }
 
 # ---------------- FIX LOCALES ----------------
@@ -283,6 +322,16 @@ install_lxd() {
     run_with_spinner \
         "Starting snapd service" \
         $SUDO systemctl enable --now snapd
+
+    run_with_spinner \
+        "Restarting snapd" \
+        $SUDO systemctl restart snapd
+
+    run_with_spinner \
+        "Restarting snapd socket" \
+        $SUDO systemctl restart snapd.socket
+
+    sleep 5
 
     echo -e "${CYAN}${INFO}${RESET} Waiting for snapd..."
 
@@ -344,7 +393,7 @@ init_lxd() {
 
     run_with_spinner \
         "Running lxd init --auto" \
-        $SUDO lxd init --auto
+        $SUDO lxd init --auto --storage-backend=dir
 }
 
 # ---------------- VALIDATE ----------------
@@ -388,7 +437,7 @@ show_success() {
     echo -e "  ${GREEN}lxc info${RESET}"
     echo -e "  ${GREEN}lxc storage list${RESET}"
     echo -e "  ${GREEN}lxc network list${RESET}"
-    echo -e "  ${GREEN}lxc launch ubuntu:24.04 myvm${RESET}"
+    echo -e "  ${GREEN}lxc launch ubuntu:22.04 test-container${RESET}"
     echo
 
     echo -e "${MAGENTA}Log File:${RESET} ${INSTALL_LOG}"
